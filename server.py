@@ -6,9 +6,10 @@ import os
 import re
 
 app = Flask(__name__)
-# KORREKTUR: CORS wird hier absolut strikt für alle Routen und Methoden freigeschaltet
+# CORS-Sicherheitsfreigabe felsenfest konfigurieren
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "OPTIONS", "HEAD"], "allow_headers": ["*"]}})
 
+# Geografischer Filter: Bodensee bis Vaduz
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -50,7 +51,7 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ
+    # 1. METEOSCHWEIZ (Offizielle Bundesdaten)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -88,6 +89,7 @@ def wind_data():
             geom = feature.get("geometry", {})
             coords = geom.get("coordinates", [])
             
+            # KORREKTUR: Zuweisung der X- und Y-Achse korrigiert
             if coords and len(coords) >= 2:
                 lon = float(coords[0])
                 lat = float(coords[1])
