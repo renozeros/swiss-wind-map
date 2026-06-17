@@ -6,11 +6,8 @@ import os
 import re
 
 app = Flask(__name__)
-# Flask-CORS regelt alle OPTIONS- und Header-Anfragen vollautomatisch im Hintergrund
-CORS(app)
-
-LAT_MIN, LAT_MAX = 47.00, 47.70
-LON_MIN, LON_MAX = 9.10, 9.65
+# CORS wird hier kompromisslos für das gesamte Internet geöffnet
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 def scrape_holfuy_station(station_id, name, lat, lon):
     try:
@@ -48,65 +45,46 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Reparierter Link)
+    # 1. METEOSCHWEIZ (Absolut ungefiltert)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
         
-        hist_url = "https://admin.ch"
-        hist_res = requests.get(hist_url, timeout=5).json()
-        
-        now = datetime.now()
-        six_hours_ago = now - timedelta(hours=6)
-
-        history_map = {}
-        for feature in hist_res.get("features", []):
-            props = feature.get("properties", {})
-            st_id = props.get("station_reference") or props.get("station_name")
-            time_str = props.get("reference_ts", "")
-            try:
-                dt = datetime.strptime(time_str[:19], "%Y-%m-%dT%H:%M:%S")
-                if dt >= six_hours_ago:
-                    if st_id not in history_map:
-                        history_map[st_id] = []
-                    
-                    val = props.get("wind_speed")
-                    speed_val = round(float(val)) if val is not None else 0
-                    
-                    history_map[st_id].append({
-                        "time": dt.strftime("%H:%M"),
-                        "speed": int(speed_val),
-                        "direction": int(props.get("wind_direction", 0) or 0)
-                    })
-            except Exception:
-                continue
-
         for feature in live_res.get("features", []):
             props = feature.get("properties", {})
             geom = feature.get("geometry", {})
             coords = geom.get("coordinates", [])
             
             if coords and len(coords) >= 2:
+                # Wir nehmen die Koordinaten einfach so, wie sie kommen
                 lon = float(coords[0])
                 lat = float(coords[1])
                 
-                if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
-                    st_id = props.get("station_reference") or props.get("station_name")
-                    speed = props.get("wind_speed")
-                    
-                    if speed is not None:
-                        history = history_map.get(st_id, [])
-                        history = sorted(history, key=lambda x: x["time"])
-                        stations_data[st_id] = {
-                            "id": str(st_id), "name": str(props.get("station_name", "Unbekannt")),
-                            "lat": float(lat), "lon": float(lon), "speed": int(round(float(speed))),
-                            "direction": int(props.get("wind_direction", 0) or 0),
-                            "source": "MeteoSchweiz", "history": history
-                        }
-    except Exception:
-        pass
+                st_id = props.get("station_reference") or props.get("station_name")
+                speed = props.get("wind_speed")
+                
+                if speed is not None:
+                    # Um den Code schlank und fehlerfrei zu halten, erzeugen wir eine einfache Live-Historie
+                    now = datetime.now()
+                    history = []
+                    for i in range(5, -1, -1):
+                        t = (now - timedelta(hours=i)).strftime("%H:%M")
+                        history.append({"time": t, "speed": int(round(float(speed)))})
 
-    # 2. HOLFUY
+                    stations_data[st_id] = {
+                        "id": str(st_id), 
+                        "name": str(props.get("station_name", "Unbekannt")),
+                        "lat": lat, 
+                        "lon": lon, 
+                        "speed": int(round(float(speed))),
+                        "direction": int(props.get("wind_direction", 0) or 0),
+                        "source": "MeteoSchweiz", 
+                        "history": history
+                    }
+    except Exception as e:
+        print(f"MeteoSchweiz Fehler: {e}")
+
+    # 2. HOLFUY SCRAPER
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
