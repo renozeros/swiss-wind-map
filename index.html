@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ostschweiz Live Wind Hub</title>
-    <!-- KORREKTUR: Wechsel zu cdnjs verhindert den unpkg-Absturz vollständig -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <!-- Stabile Leaflet-Bibliotheken über das offizielle, ausfallsichere UNPKG-Netzwerk -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
+    <script src="https://jsdelivr.net"></script>
     
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -40,120 +40,121 @@
     <div id="map"></div>
 
     <script>
-        const map = L.map('map').setView([47.38, 9.38], 10);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
-
-        let markerLayer = L.layerGroup().addTo(map);
-
-        async function updateMap() {
-            try {
-                // Einfacher Datenabruf ohne komplexe Header umgeht die CORS-Sperre im Zusammenspiel mit dem neuen Backend
-                const response = await fetch('https://onrender.com');
-                
-                if (!response.ok) {
-                    throw new Error("Server antwortet nicht korrekt");
-                }
-                
-                const stations = await response.json();
-                
-                if (stations && stations.length > 0) {
-                    markerLayer.clearLayers();
-
-                    stations.forEach(station => {
-                        let cleanSource = "MeteoSchweiz";
-                        if (station.source && String(station.source).toLowerCase().includes("holfuy")) {
-                            cleanSource = "Holfuy";
-                        }
-                        
-                        const sourceClass = "source-" + cleanSource;
-                        const displaySpeed = station.speed !== undefined ? String(station.speed) : "0";
-                        
-                        // KORREKTUR: Alternative Schreibweise ohne eckige Klammern verhindert Datenverlust im Chat-System
-                        const customIcon = L.divIcon({
-                            className: `wind-marker ${sourceClass}`,
-                            html: displaySpeed,
-                            iconSize: L.point(34, 34)
-                        });
-
-                        const popupId = `chart-${station.id}`;
-                        const popupHTML = `
-                            <div style="font-family: sans-serif;">
-                                <strong style="font-size:13px;">${station.name}</strong><br>
-                                <span style="font-size:11px; color:#666;">Quelle: ${station.source}</span><br>
-                                <span style="font-size:12px;"><b>Aktuell:</b> ${station.speed} km/h (${station.direction}°)</span>
-                                <div class="chart-container">
-                                    <canvas id="${popupId}"></canvas>
-                                </div>
-                            </div>
-                        `;
-
-                        const lat = Number(station.lat);
-                        const lon = Number(station.lon);
-
-                        if (!isNaN(lat) && !isNaN(lon)) {
-                            const marker = L.marker([lat, lon], { icon: customIcon })
-                                .addTo(markerLayer)
-                                .bindPopup(popupHTML);
-
-                            marker.on('popupopen', () => {
-                                createPopupChart(popupId, station.history);
-                            });
-                        }
-                    });
-
-                    document.getElementById('status').innerHTML = `🟢 Live: ${stations.length} Stationen aktiv.`;
-                } else {
-                    document.getElementById('status').innerHTML = "🔴 Keine Stationen geladen.";
-                }
-            } catch (error) {
-                document.getElementById('status').innerHTML = "🔴 Verbindung fehlgeschlagen.";
-                console.error(error);
-            }
-        }
-
-        function createPopupChart(canvasId, historyData) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            
-            if (!historyData || historyData.length === 0) {
-                ctx.font = "12px Arial";
-                ctx.fillText("Keine Verlaufsdaten verfügbar", 10, 50);
+        // Sicherheitsnetz: Wir zwingen den Browser zu warten, bis Leaflet (L) zu 100% geladen ist
+        window.addEventListener('DOMContentLoaded', () => {
+            if (typeof L === 'undefined') {
+                document.getElementById('status').innerHTML = "🔴 Leaflet-Bibliothek blockiert. Lade neu...";
                 return;
             }
 
-            const labels = historyData.map(h => String(h.time));
-            const speeds = historyData.map(h => Number(h.speed));
+            const map = L.map('map').setView([47.38, 9.38], 10);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
 
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'km/h',
-                        data: speeds,
-                        borderColor: '#007bff',
-                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3,
-                        pointRadius: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { font: { size: 9 } } },
-                        y: { beginAtZero: true, ticks: { font: { size: 9 } } }
+            let markerLayer = L.layerGroup().addTo(map);
+
+            async function updateMap() {
+                try {
+                    const response = await fetch('https://onrender.com');
+                    
+                    if (!response.ok) {
+                        throw new Error("Server antwortet nicht korrekt");
                     }
-                }
-            });
-        }
+                    
+                    const stations = await response.json();
+                    
+                    if (stations && stations.length > 0) {
+                        markerLayer.clearLayers();
 
-        updateMap();
-        setInterval(updateMap, 60000);
+                        stations.forEach(station => {
+                            let cleanSource = "MeteoSchweiz";
+                            if (station.source && String(station.source).toLowerCase().includes("holfuy")) {
+                                cleanSource = "Holfuy";
+                            }
+                            
+                            const sourceClass = "source-" + cleanSource;
+                            const displaySpeed = station.speed !== undefined ? String(station.speed) : "0";
+                            
+                            const customIcon = L.divIcon({
+                                className: "wind-marker " + sourceClass,
+                                html: displaySpeed,
+                                iconSize: L.point(34, 34)
+                            });
+
+                            const popupId = "chart-" + station.id;
+                            const popupHTML = '<div style="font-family: sans-serif;"><strong style="font-size:13px;">' + station.name + '</strong><br><span style="font-size:11px; color:#666;">Quelle: ' + station.source + '</span><br><span style="font-size:12px;"><b>Aktuell:</b> ' + station.speed + ' km/h (' + station.direction + '°)</span><div class="chart-container"><canvas id="' + popupId + '"></canvas></div></div>';
+
+                            const lat = Number(station.lat);
+                            const lon = Number(station.lon);
+
+                            if (!isNaN(lat) && !isNaN(lon)) {
+                                const marker = L.marker([lat, lon], { icon: customIcon })
+                                    .addTo(markerLayer)
+                                    .bindPopup(popupHTML);
+
+                                marker.on('popupopen', () => {
+                                    createPopupChart(popupId, station.history);
+                                });
+                            }
+                        });
+
+                        document.getElementById('status').innerHTML = "🟢 Live: " + stations.length + " Stationen aktiv.";
+                    } else {
+                        document.getElementById('status').innerHTML = "🔴 Keine Stationen geladen.";
+                    }
+                } catch (error) {
+                    document.getElementById('status').innerHTML = "🔴 Verbindung fehlgeschlagen.";
+                    console.error(error);
+                }
+            }
+
+            function createPopupChart(canvasId, historyData) {
+                const canvasEl = document.getElementById(canvasId);
+                if (!canvasEl) return;
+                const ctx = canvasEl.getContext('2d');
+                
+                if (!historyData || historyData.length === 0) {
+                    ctx.font = "12px Arial";
+                    ctx.fillText("Keine Verlaufsdaten verfügbar", 10, 50);
+                    return;
+                }
+
+                const labels = historyData.map(h => String(h.time));
+                const speeds = historyData.map(h => Number(h.speed));
+
+                if (typeof Chart !== 'undefined') {
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'km/h',
+                                data: speeds,
+                                borderColor: '#007bff',
+                                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                pointRadius: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                                y: { beginAtZero: true, ticks: { font: { size: 9 } } }
+                            }
+                        }
+                    });
+                }
+            }
+
+            updateMap();
+            setInterval(updateMap, 60000);
+        });
     </script>
 </body>
 </html>
