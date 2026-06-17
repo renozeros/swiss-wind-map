@@ -31,7 +31,7 @@
             const containerEl = document.getElementById("table-container");
 
             try {
-                const response = await fetch("https://swiss-wind-backend.onrender.com/api/wind");
+                const response = await fetch("https://onrender.com");
                 
                 if (!response.ok) {
                     throw new Error("HTTP-Fehler " + response.status);
@@ -57,7 +57,7 @@
                         html += "</tr>";
                     });
 
-                    html += "<table>";
+                    html += "</table>";
                     containerEl.innerHTML = html;
                     
                     statusEl.style.background = "#d4edda";
