@@ -50,14 +50,18 @@
 
         async function updateMap() {
             try {
-                // Ihre Live-Render-Adresse fest eingebunden
                 const response = await fetch('https://onrender.com');
                 const stations = await response.json();
                 
                 markerLayer.clearLayers();
 
                 stations.forEach(station => {
-                    const sourceClass = "source-" + station.source.split(" ")[0];
+                    // Korrigierte Farb-Klassenzuweisung ohne JavaScript-Absturz
+                    let cleanSource = "MeteoSchweiz";
+                    if (station.source.includes("Holfuy")) cleanSource = "Holfuy";
+                    if (station.source.includes("Winds")) cleanSource = "Winds";
+                    
+                    const sourceClass = "source-" + cleanSource;
                     
                     const customIcon = L.divIcon({
                         className: `wind-marker ${sourceClass}`,
