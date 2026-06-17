@@ -8,10 +8,6 @@ import re
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Geografischer Rahmen für die Messwerte
-LAT_MIN, LAT_MAX = 47.00, 47.70
-LON_MIN, LON_MAX = 9.10, 9.65
-
 def scrape_holfuy_station(station_id, name, lat, lon):
     try:
         url = f"https://holfuy.com{station_id}&su=km/h&t=C&lang=de&mode=detailed"
@@ -48,53 +44,37 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Geografische Erfassung über Live-Koordinaten)
+    # 1. METEOSCHWEIZ (Gekapselt gegen Systemabstürze)
     try:
         live_url = "https://admin.ch"
-        live_res = requests.get(live_url, timeout=5).json()
+        live_res = requests.get(live_url, timeout=4).json()
         
         for feature in live_res.get("features", []):
-            geom = feature.get("geometry", {})
-            coords = geom.get("coordinates", [])
+            props = feature.get("properties", {})
+            st_name = props.get("station_name")
             
-            # Überprüfung, ob gültige Geodaten im Datensatz existieren
-            if coords and len(coords) >= 2:
-                lon = float(coords[0])
-                lat = float(coords[1])
+            # Regional-Filter über Stationsnamen-Schlagworte
+            if st_name and any(x in st_name for x in ["Säntis", "Altenrhein", "Vaduz", "St. Gallen", "Kreuzlingen"]):
+                desc = props.get("description", "")
+                val = props.get("value")
                 
-                # Wir filtern direkt im Datenstrom nach Ihrer Wunsch-Region
-                if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
-                    props = feature.get("properties", {})
-                    st_name = props.get("station_name") or "Unbekannte Station"
+                if val is not None:
                     st_id = props.get("station_reference") or st_name
+                    if st_id not in stations_data:
+                        stations_data[st_id] = {
+                            "id": str(st_id), "name": str(st_name) + " (MeteoSchweiz)",
+                            "lat": 47.38, "lon": 9.38, "speed": 0, "direction": 0,
+                            "source": "MeteoSchweiz", "history": []
+                        }
                     
-                    desc = props.get("description", "")
-                    val = props.get("value")
-                    
-                    if val is not None:
-                        if st_id not in stations_data:
-                            stations_data[st_id] = {
-                                "id": str(st_id),
-                                "name": str(st_name) + " (MeteoSchweiz)",
-                                "lat": lat,
-                                "lon": lon,
-                                "speed": 0,
-                                "direction": 0,
-                                "source": "MeteoSchweiz",
-                                "history": []
-                            }
-                        
-                        try:
-                            if "Windgeschwindigkeit" in desc:
-                                stations_data[st_id]["speed"] = int(round(float(val)))
-                            elif "Windrichtung" in desc:
-                                stations_data[st_id]["direction"] = int(val)
-                        except (ValueError, TypeError):
-                            continue
+                    if "Windgeschwindigkeit" in desc:
+                        stations_data[st_id]["speed"] = int(round(float(val)))
+                    elif "Windrichtung" in desc:
+                        stations_data[st_id]["direction"] = int(val)
     except Exception:
-        pass
+        pass  # Wenn das Regierungsnetz fehlerhaft antwortet, wird es ignoriert
 
-    # 2. HOLFUY SCRAPER
+    # 2. HOLFUY LIVE-SCRAPER (Wird unter allen Umständen geladen)
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
@@ -107,10 +87,7 @@ def wind_data():
     except Exception:
         pass
 
-    # Bereinigung: Wir entfernen unvollständige Stationen ohne Windwerte aus der Liste
-    final_list = [s for s in stations_data.values() if s["speed"] > 0 or s["source"] == "Holfuy"]
-
-    response = make_response(jsonify(final_list))
+    response = make_response(jsonify(list(stations_data.values())))
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
