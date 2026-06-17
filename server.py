@@ -1,12 +1,17 @@
 import requests
-from flask import Flask, jsonify, make_response
+import flask
+from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import re
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
+
+# Geografisches Fenster: Bodensee bis Vaduz
+LAT_MIN, LAT_MAX = 47.00, 47.70
+LON_MIN, LON_MAX = 9.10, 9.65
 
 def scrape_holfuy_station(station_id, name, lat, lon):
     try:
@@ -58,34 +63,37 @@ def wind_data():
                 lon = float(coords[0])
                 lat = float(coords[1])
                 
-                st_id = props.get("station_reference") or props.get("station_name")
-                speed = props.get("wind_speed")
-                
-                if speed is not None and st_id:
-                    try:
-                        speed_int = int(round(float(speed)))
-                    except (ValueError, TypeError):
-                        continue
-                        
-                    direction = props.get("wind_direction")
-                    dir_int = int(direction) if direction is not None else 0
+                if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
+                    st_id = props.get("station_reference") or props.get("station_name")
                     
-                    now = datetime.now()
-                    history = []
-                    for i in range(5, -1, -1):
-                        t = (now - timedelta(hours=i)).strftime("%H:%M")
-                        history.append({"time": t, "speed": speed_int})
+                    # KORREKTUR: Abfrage auf den exakten Parameternamen der MeteoSchweiz OGD-Schnittstelle geändert
+                    speed = props.get("wind_speed_unit_station") or props.get("wind_speed")
+                    
+                    if speed is not None and st_id:
+                        try:
+                            speed_int = int(round(float(speed)))
+                        except (ValueError, TypeError):
+                            continue
+                            
+                        direction = props.get("wind_direction") or props.get("wind_direction_unit_station")
+                        dir_int = int(direction) if direction is not None else 0
+                        
+                        now = datetime.now()
+                        history = []
+                        for i in range(5, -1, -1):
+                            t = (now - timedelta(hours=i)).strftime("%H:%M")
+                            history.append({"time": t, "speed": speed_int})
 
-                    stations_data[st_id] = {
-                        "id": str(st_id), 
-                        "name": str(props.get("station_name", "Unbekannt")),
-                        "lat": lat, 
-                        "lon": lon, 
-                        "speed": speed_int,
-                        "direction": dir_int,
-                        "source": "MeteoSchweiz", 
-                        "history": history
-                    }
+                        stations_data[st_id] = {
+                            "id": str(st_id), 
+                            "name": str(props.get("station_name", "Unbekannt")),
+                            "lat": lat, 
+                            "lon": lon, 
+                            "speed": speed_int,
+                            "direction": dir_int,
+                            "source": "MeteoSchweiz", 
+                            "history": history
+                        }
     except Exception:
         pass
 
