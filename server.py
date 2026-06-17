@@ -6,7 +6,7 @@ import os
 import re
 
 app = Flask(__name__)
-# KORREKTUR: Flask-CORS regelt alle OPTIONS- und Header-Anfragen vollautomatisch im Hintergrund
+# Flask-CORS regelt alle OPTIONS- und Header-Anfragen vollautomatisch im Hintergrund
 CORS(app)
 
 LAT_MIN, LAT_MAX = 47.00, 47.70
@@ -44,12 +44,11 @@ def scrape_holfuy_station(station_id, name, lat, lon):
 def home():
     return "🟢 Swiss Wind Backend läuft einwandfrei!"
 
-# KORREKTUR: Nur noch GET erlauben, da Flask-CORS die OPTIONS-Anfragen automatisch abfängt
 @app.route("/api/wind", methods=["GET"])
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ
+    # 1. METEOSCHWEIZ (Reparierter Link)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
