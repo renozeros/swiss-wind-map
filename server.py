@@ -1,13 +1,13 @@
 import requests
-from flask import Flask, jsonify, make_response, request
+from flask import Flask, jsonify, make_response
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import re
 
 app = Flask(__name__)
-# CORS wird hier absolut lückenlos für alle Anfragen freigeschaltet
-CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "OPTIONS", "HEAD"], "allow_headers": ["*"]}})
+# KORREKTUR: Flask-CORS regelt alle OPTIONS- und Header-Anfragen vollautomatisch im Hintergrund
+CORS(app)
 
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
@@ -42,28 +42,17 @@ def scrape_holfuy_station(station_id, name, lat, lon):
 
 @app.route("/")
 def home():
-    response = make_response("🟢 Swiss Wind Backend läuft einwandfrei!")
-    response.headers["Content-Type"] = "text/plain; charset=utf-8"
-    return response
+    return "🟢 Swiss Wind Backend läuft einwandfrei!"
 
-@app.route("/api/wind", methods=["GET", "OPTIONS"])
+# KORREKTUR: Nur noch GET erlauben, da Flask-CORS die OPTIONS-Anfragen automatisch abfängt
+@app.route("/api/wind", methods=["GET"])
 def wind_data():
-    # CORS Preflight Abfangen über das korrekt importierte request-Objekt
-    if request.method == "OPTIONS":
-        response = make_response()
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS, HEAD"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
-
     stations_data = {}
     
     # 1. METEOSCHWEIZ
     try:
         live_url = "https://admin.ch"
-        # Fallback auf stabile URL falls Bundesnetz temporär verzögert
-        live_url_alt = "https://admin.ch"
-        live_res = requests.get(live_url_alt, timeout=5).json()
+        live_res = requests.get(live_url, timeout=5).json()
         
         hist_url = "https://admin.ch"
         hist_res = requests.get(hist_url, timeout=5).json()
@@ -131,9 +120,7 @@ def wind_data():
     except Exception:
         pass
 
-    response = make_response(jsonify(list(stations_data.values())))
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    return response
+    return jsonify(list(stations_data.values()))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
