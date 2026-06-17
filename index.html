@@ -52,7 +52,7 @@
                 const response = await fetch('https://onrender.com');
                 
                 if (!response.ok) {
-                    throw new Error("Server antwortet fehlerhaft");
+                    throw new Error("Server-Fehler");
                 }
                 
                 const stations = await response.json();
@@ -66,9 +66,10 @@
                         
                         const sourceClass = "source-" + cleanSource;
                         
+                        // KORREKTUR: Gültiges Datenobjekt für das Icon ohne Leaflet-Absturz
                         const customIcon = L.divIcon({
                             className: `wind-marker ${sourceClass}`,
-                            html: station.speed,
+                            html: String(station.speed),
                             iconSize: [34, 34]
                         });
 
