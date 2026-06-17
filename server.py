@@ -8,6 +8,10 @@ import re
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Geografischer Rahmen für die Messwerte
+LAT_MIN, LAT_MAX = 47.00, 47.70
+LON_MIN, LON_MAX = 9.10, 9.65
+
 def scrape_holfuy_station(station_id, name, lat, lon):
     try:
         url = f"https://holfuy.com{station_id}&su=km/h&t=C&lang=de&mode=detailed"
@@ -44,61 +48,53 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # Feste Koordinaten für wichtige Messorte der Region Bodensee/Alpstein/Vaduz
-    regional_coordinates = {
-        "ALT": {"lat": 47.4833, "lon": 9.5667, "name": "Altenrhein"},
-        "SNT": {"lat": 47.2500, "lon": 9.3500, "name": "Säntis"},
-        "VAD": {"lat": 47.1333, "lon": 9.5167, "name": "Vaduz"},
-        "KRE": {"lat": 47.6500, "lon": 9.1667, "name": "Kreuzlingen"},
-        "STG": {"lat": 47.4333, "lon": 9.3833, "name": "St. Gallen"},
-        "CHM": {"lat": 47.1667, "lon": 9.5333, "name": "Balzers / Liechtenstein"}
-    }
-    
-    # 1. METEOSCHWEIZ
+    # 1. METEOSCHWEIZ (Geografische Erfassung über Live-Koordinaten)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
         
         for feature in live_res.get("features", []):
-            props = feature.get("properties", {})
-            st_id = props.get("station_reference")
+            geom = feature.get("geometry", {})
+            coords = geom.get("coordinates", [])
             
-            # Prüfen, ob die Station in unserer gewünschten Region liegt
-            if st_id in regional_coordinates:
-                # Extraktion der reinen Windgeschwindigkeit aus den verschachtelten Messwerten
-                # MeteoSchweiz speichert Werte oft in einer Liste oder unter 'value'
-                parameters = props.get("parameters", {})
+            # Überprüfung, ob gültige Geodaten im Datensatz existieren
+            if coords and len(coords) >= 2:
+                lon = float(coords[0])
+                lat = float(coords[1])
                 
-                # Suchen nach dem Windgeschwindigkeits-Wert im Objekt
-                speed_data = parameters.get("wind_speed", {}) or parameters.get("wind_speed_unit_station", {})
-                speed = speed_data.get("value")
-                
-                if speed is not None:
-                    try:
-                        speed_int = int(round(float(speed)))
-                    except (ValueError, TypeError):
-                        continue
+                # Wir filtern direkt im Datenstrom nach Ihrer Wunsch-Region
+                if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
+                    props = feature.get("properties", {})
+                    st_name = props.get("station_name") or "Unbekannte Station"
+                    st_id = props.get("station_reference") or st_name
+                    
+                    desc = props.get("description", "")
+                    val = props.get("value")
+                    
+                    if val is not None:
+                        if st_id not in stations_data:
+                            stations_data[st_id] = {
+                                "id": str(st_id),
+                                "name": str(st_name) + " (MeteoSchweiz)",
+                                "lat": lat,
+                                "lon": lon,
+                                "speed": 0,
+                                "direction": 0,
+                                "source": "MeteoSchweiz",
+                                "history": []
+                            }
                         
-                    direction_data = parameters.get("wind_direction", {}) or parameters.get("wind_direction_unit_station", {})
-                    direction = direction_data.get("value")
-                    dir_int = int(direction) if direction is not None else 0
-                    
-                    coord_info = regional_coordinates[st_id]
-                    
-                    stations_data[st_id] = {
-                        "id": str(st_id), 
-                        "name": coord_info["name"] + " (MeteoSchweiz)",
-                        "lat": coord_info["lat"], 
-                        "lon": coord_info["lon"], 
-                        "speed": speed_int,
-                        "direction": dir_int,
-                        "source": "MeteoSchweiz", 
-                        "history": []
-                    }
+                        try:
+                            if "Windgeschwindigkeit" in desc:
+                                stations_data[st_id]["speed"] = int(round(float(val)))
+                            elif "Windrichtung" in desc:
+                                stations_data[st_id]["direction"] = int(val)
+                        except (ValueError, TypeError):
+                            continue
     except Exception:
         pass
 
-    # 2. HOLFUY
+    # 2. HOLFUY SCRAPER
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
@@ -111,7 +107,10 @@ def wind_data():
     except Exception:
         pass
 
-    response = make_response(jsonify(list(stations_data.values())))
+    # Bereinigung: Wir entfernen unvollständige Stationen ohne Windwerte aus der Liste
+    final_list = [s for s in stations_data.values() if s["speed"] > 0 or s["source"] == "Holfuy"]
+
+    response = make_response(jsonify(final_list))
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
 
