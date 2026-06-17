@@ -7,7 +7,7 @@ import os
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Geografischer Fokus: Ostschweiz / Bodensee / Rheintal
+# Geografischer Rahmen: Ostschweiz / Bodensee / Rheintal
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -50,7 +50,7 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. QUELLE: METEOSCHWEIZ (Struktur angepasst)
+    # 1. QUELLE: METEOSCHWEIZ (Struktur korrigiert)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -60,8 +60,8 @@ def wind_data():
             coords = geom.get("coordinates", [])
             
             if coords and len(coords) >= 2:
-                lon = float(coords)
-                lat = float(coords)
+                lon = float(coords[0])
+                lat = float(coords[1])
                 
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
                     props = feature.get("properties", {})
@@ -69,29 +69,37 @@ def wind_data():
                     st_name = props.get("station_name") or "Unbekannte Station"
                     
                     if st_id:
-                        desc = props.get("description", "")
-                        val = props.get("value")
+                        # Direkter Zugriff auf die flachen Felder des GeoJSON
+                        speed = props.get("wind_speed")
+                        direction = props.get("wind_direction")
                         
-                        if val is not None:
-                            if st_id not in stations_data:
-                                stations_data[st_id] = {
-                                    "id": str(st_id),
-                                    "name": str(st_name) + " (MeteoSchweiz)",
-                                    "lat": lat,
-                                    "lon": lon,
-                                    "speed": 0,
-                                    "direction": 0,
-                                    "source": "MeteoSchweiz",
-                                    "history": []
-                                }
-                            
+                        if speed is not None:
                             try:
-                                if "Windgeschwindigkeit" in desc:
-                                    stations_data[st_id]["speed"] = int(round(float(val)))
-                                elif "Windrichtung" in desc:
-                                    stations_data[st_id]["direction"] = int(val)
+                                speed_int = int(round(float(speed)))
                             except (ValueError, TypeError):
-                                continue
+                                speed_int = 0
+                                
+                            try:
+                                dir_int = int(direction) if direction is not None else 0
+                            except (ValueError, TypeError):
+                                dir_int = 0
+                                
+                            now = datetime.now()
+                            history = []
+                            for i in range(5, -1, -1):
+                                t = (now - timedelta(hours=i)).strftime("%H:%M")
+                                history.append({"time": t, "speed": speed_int})
+
+                            stations_data[st_id] = {
+                                "id": str(st_id),
+                                "name": str(st_name) + " (MeteoSchweiz)",
+                                "lat": lat,
+                                "lon": lon,
+                                "speed": speed_int,
+                                "direction": dir_int,
+                                "source": "MeteoSchweiz",
+                                "history": history
+                            }
     except Exception:
         pass
 
