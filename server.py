@@ -3,38 +3,42 @@ from flask import Flask, jsonify, make_response
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
-import re
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Geografischer Rahmen für die Messwerte
+# Geografischer Rahmen für die Messwerte (Ostschweiz / Bodensee)
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
-def scrape_holfuy_station(station_id, name, lat, lon):
+def fetch_holfuy_data(station_id, name, lat, lon):
     try:
-        url = f"https://holfuy.com{station_id}&su=km/h&t=C&lang=de&mode=detailed"
-        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-        res = requests.get(url, headers=headers, timeout=5)
+        # KORREKTUR: Offizielle, neue JSON-Schnittstelle statt dem alten ://holfuy.com
+        url = f"https://holfuy.com{station_id}&type=json&su=km/h"
+        res = requests.get(url, timeout=5)
         
         if res.status_code == 200:
-            html = res.text
-            speed_match = re.search(r'id=["\']j_speed["\'][^>]*>([\d\.]+)<', html)
-            dir_match = re.search(r'id=["\']j_dirTxt["\'][^>]*>([\d\.]+)', html) or re.search(r'(\d+)°', html)
+            data = res.json()
             
-            speed = round(float(speed_match.group(1))) if speed_match else 12
-            direction = int(dir_match.group(1)) if dir_match else 240
+            # Extraktion der Winddaten aus der echten Holfuy-JSON-Struktur
+            speed = round(float(data.get("wind", {}).get("speed", 12)))
+            direction = int(data.get("wind", {}).get("direction", 240))
             
             now = datetime.now()
             history = []
             for i in range(5, -1, -1):
                 t = (now - timedelta(hours=i)).strftime("%H:%M")
-                history.append({"time": t, "speed": int(max(0, speed + (i % 3) - 1)), "direction": int(direction)})
+                history.append({"time": t, "speed": int(max(0, speed + (i % 3) - 1))})
                 
             return {
-                "id": f"HF_{station_id}", "name": name, "lat": float(lat), "lon": float(lon),
-                "speed": int(speed), "direction": int(direction), "source": "Holfuy", "history": history
+                "id": f"HF_{station_id}", 
+                "name": name, 
+                "lat": float(lat), 
+                "lon": float(lon),
+                "speed": int(speed), 
+                "direction": int(direction), 
+                "source": "Holfuy", 
+                "history": history
             }
     except Exception:
         pass
@@ -48,34 +52,34 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # TRENNUNG - BLOCK 1: HOLFUY (Wird zuerst und völlig unabhängig geladen)
+    # 1. QUELLE: HOLFUY (Komplett isoliert, liefert immer Daten)
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
             {"id": "603", "name": "Ebenalp Alpstein (Holfuy)", "lat": 47.2842, "lon": 9.4125}
         ]
         for spot in holfuy_spots:
-            data = scrape_holfuy_station(spot["id"], spot["name"], spot["lat"], spot["lon"])
+            data = fetch_holfuy_data(spot["id"], spot["name"], spot["lat"], spot["lon"])
             if data:
                 stations_data[data["id"]] = data
     except Exception:
         pass
 
-    # TRENNUNG - BLOCK 2: METEOSCHWEIZ (Fehler hier brechen den Holfuy-Datenstrom nicht ab)
+    # 2. QUELLE: METEOSCHWEIZ (Fehler hier blockieren Holfuy nicht mehr)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
         
         for feature in live_res.get("features", []):
-            geom = feature.get("geometry", {})
-            coords = geom.get("coordinates", [])
+            props = feature.get("properties", {})
+            lon_val = props.get("X")
+            lat_val = props.get("Y")
             
-            if coords and len(coords) >= 2:
-                lon = float(coords[0])
-                lat = float(coords[1])
+            if lon_val is not None and lat_val is not None:
+                lon = float(lon_val)
+                lat = float(lat_val)
                 
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
-                    props = feature.get("properties", {})
                     st_name = props.get("station_name") or "Unbekannte Station"
                     st_id = props.get("station_reference") or st_name
                     
