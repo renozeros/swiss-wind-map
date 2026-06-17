@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Geografischer Fokus: Ostschweiz / Bodensee / Rheintal
+# Geografischer Rahmen für die Messwerte
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -48,7 +48,20 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # ISOLIERTER BLOCK 1: METEOSCHWEIZ (Fehler beeinträchtigen Holfuy nicht)
+    # TRENNUNG - BLOCK 1: HOLFUY (Wird zuerst und völlig unabhängig geladen)
+    try:
+        holfuy_spots = [
+            {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
+            {"id": "603", "name": "Ebenalp Alpstein (Holfuy)", "lat": 47.2842, "lon": 9.4125}
+        ]
+        for spot in holfuy_spots:
+            data = scrape_holfuy_station(spot["id"], spot["name"], spot["lat"], spot["lon"])
+            if data:
+                stations_data[data["id"]] = data
+    except Exception:
+        pass
+
+    # TRENNUNG - BLOCK 2: METEOSCHWEIZ (Fehler hier brechen den Holfuy-Datenstrom nicht ab)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -89,19 +102,6 @@ def wind_data():
                                 stations_data[st_id]["direction"] = int(val)
                         except (ValueError, TypeError):
                             continue
-    except Exception:
-        pass
-
-    # ISOLIERTER BLOCK 2: HOLFUY (Läuft autark und liefert immer Daten)
-    try:
-        holfuy_spots = [
-            {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
-            {"id": "603", "name": "Ebenalp Alpstein (Holfuy)", "lat": 47.2842, "lon": 9.4125}
-        ]
-        for spot in holfuy_spots:
-            data = scrape_holfuy_station(spot["id"], spot["name"], spot["lat"], spot["lon"])
-            if data:
-                stations_data[data["id"]] = data
     except Exception:
         pass
 
