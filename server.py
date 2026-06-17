@@ -1,12 +1,11 @@
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, make_response
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
 import re
 
 app = Flask(__name__)
-# CORS-Freigabe für alle Domains erzwingen, damit Browser die Daten nicht blockieren
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Geografischer Fokus: Kreuzlingen/Bodensee -> Alpstein -> Vaduz
@@ -76,11 +75,11 @@ def fetch_winds_mobi_stations():
         pass
     return stations
 
-@app.route("/api/wind")
+@app.route("/api/wind", methods=["GET", "OPTIONS"])
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Offizielle Bundesdaten)
+    # 1. METEOSCHWEIZ
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -112,8 +111,11 @@ def wind_data():
         for feature in live_res.get("features", []):
             props = feature.get("properties", {})
             geom = feature.get("geometry", {})
-            if geom.get("coordinates"):
-                lon, lat = geom["coordinates"], geom["coordinates"]
+            if geom.get("coordinates") and len(geom["coordinates"]) >= 2:
+                # FEHLER BEHOBEN: Richtige Zuweisung von Längengrad (Index 0) und Breitengrad (Index 1)
+                lon = geom["coordinates"][0]
+                lat = geom["coordinates"][1]
+                
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
                     st_id = props.get("station_reference") or props.get("station_name")
                     speed = props.get("wind_speed")
@@ -151,9 +153,10 @@ def wind_data():
     except Exception:
         pass
 
-    # CORS Headers manuell erzwingen für maximale Sicherheit
-    response = jsonify(list(stations_data.values()))
-    response.headers.add("Access-Control-Allow-Origin", "*")
+    response = make_response(jsonify(list(stations_data.values())))
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     return response
 
 if __name__ == "__main__":
