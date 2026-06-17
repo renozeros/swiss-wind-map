@@ -19,7 +19,6 @@ def fetch_holfuy_data(station_id, name, lat, lon):
             data = res.json()
             wind_obj = data.get("wind", {})
             
-            # Auslesen der verschachtelten Werte
             speed = round(float(wind_obj.get("speed", 0)))
             direction = int(wind_obj.get("direction", 0))
             
@@ -51,7 +50,7 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. QUELLE: METEOSCHWEIZ
+    # 1. QUELLE: METEOSCHWEIZ (Struktur angepasst)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -60,16 +59,12 @@ def wind_data():
             geom = feature.get("geometry", {})
             coords = geom.get("coordinates", [])
             
-            # Verifikation der Geodaten-Existenz
             if coords and len(coords) >= 2:
-                lon = float(coords[0])
-                lat = float(coords[1])
+                lon = float(coords)
+                lat = float(coords)
                 
-                # Filterung nach der Zielregion
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
                     props = feature.get("properties", {})
-                    
-                    # KORREKTUR: Verwendung des korrekten Feldes 'station_code' statt 'station_reference'
                     st_id = props.get("station_code")
                     st_name = props.get("station_name") or "Unbekannte Station"
                     
@@ -100,7 +95,7 @@ def wind_data():
     except Exception:
         pass
 
-    # 2. QUELLE: HOLFUY (Komplett isoliert in eigenem Block)
+    # 2. QUELLE: HOLFUY
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
