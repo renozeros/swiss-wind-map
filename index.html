@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ostschweiz Live Wind Hub</title>
-    <link rel="stylesheet" href="https://cloudflare.com" />
-    <script src="https://cloudflare.com"></script>
-    <script src="https://cloudflare.com"></script>
+    <!-- Umstellung auf das ausfallsichere jsDelivr-Netzwerk löst die unpkg-Blockade auf Ihrem Mac -->
+    <link rel="stylesheet" href="https://jsdelivr.net" />
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
     
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -41,11 +42,11 @@
     <script>
         window.addEventListener('DOMContentLoaded', () => {
             if (typeof L === 'undefined') {
-                document.getElementById('status').innerHTML = "🔴 Leaflet-Kartenbibliothek blockiert.";
+                document.getElementById('status').innerHTML = "🔴 Leaflet-Kartenbibliothek konnte nicht geladen werden.";
                 return;
             }
 
-            // Karte initialisieren und auf die Ostschweiz ausrichten
+            // Karte initialisieren und stabil auf die Ostschweiz zentrieren
             const map = L.map('map').setView([47.38, 9.38], 10);
             
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -76,11 +77,12 @@
                             const sourceClass = "source-" + cleanSource;
                             const displaySpeed = station.speed !== undefined ? String(station.speed) : "0";
                             
-                            // Sichere Definition der Marker-Grösse über L.point
+                            // Sichere Erzeugung des Icons über die Leaflet-eigene Point-Logik
+                            const sizePoint = L.point(34, 34);
                             const customIcon = L.divIcon({
                                 className: "wind-marker " + sourceClass,
                                 html: displaySpeed,
-                                iconSize: L.point(34, 34)
+                                iconSize: sizePoint
                             });
 
                             const popupId = "chart-" + station.id;
