@@ -1,0 +1,155 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.6">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;html lang="de"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;Ostschweiz &amp; Bodensee Wind Hub&lt;/title&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;link rel="stylesheet" href="https://unpkg.com" /&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://unpkg.com"&gt;&lt;/script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script src="https://jsdelivr.net"&gt;&lt;/script&gt;</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;style&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>body { margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>#map { width: 100vw; height: 100vh; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.info-panel {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>position: absolute; top: 15px; left: 50px; z-index: 1000;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 280px;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.wind-marker {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>color: white; border-radius: 50%; text-align: center;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>font-size: 12px; font-weight: bold; line-height: 32px;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>border: 2px solid white; width: 34px !important; height: 34px !important;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>box-shadow: 0 2px 6px rgba(0,0,0,0.3);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.source-MeteoSchweiz { background: #007bff; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.source-Holfuy { background: #fd7e14; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.source-Winds { background: #6f42c1; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.leaflet-popup-content { width: 260px !important; }</p>
+<p class="p1"><span class="Apple-converted-space">        </span>.chart-container { width: 100%; height: 130px; margin-top: 10px; }</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="info-panel"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;h3 style="margin:0 0 5px 0; font-size:16px;"&gt;Bodensee - Alpstein - Vaduz&lt;/h3&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;p style="margin:0 0 10px 0; font-size:12px; color:#555;"&gt;Klicken Sie eine Station an, um den 6h-Verlauf zu sehen.&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div id="status" style="font-size:12px; font-weight:bold;"&gt;Verbinde zum Server...&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="map"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;script&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>// Karte zentriert auf Ostschweiz / Rheintal / Bodensee</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const map = L.map('map').setView([47.38, 9.38], 10);</p>
+<p class="p2"><span class="Apple-converted-space">        </span></p>
+<p class="p1"><span class="Apple-converted-space">        </span>L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>attribution: '&amp;copy; OpenStreetMap'</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}).addTo(map);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>let markerLayer = L.layerGroup().addTo(map);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>async function updateMap() {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>try {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// WICHTIG: Ersetze 'DEINE_RENDER_URL_HIER' durch deine echte Render-Webadresse nach Schritt 2!</p>
+<p class="p1"><span class="Apple-converted-space">                </span>// Beispiel: 'https://onrender.com'</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const response = await fetch('DEINE_RENDER_URL_HIER/api/wind');</p>
+<p class="p1"><span class="Apple-converted-space">                </span>const stations = await response.json();</p>
+<p class="p2"><span class="Apple-converted-space">                </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>markerLayer.clearLayers();</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                </span>stations.forEach(station =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const sourceClass = "source-" + station.source.split(" ")[0];</p>
+<p class="p2"><span class="Apple-converted-space">                    </span></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const customIcon = L.divIcon({</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className: `wind-marker ${sourceClass}`,</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>html: station.speed,</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>iconSize: [34, 34]</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const popupId = `chart-${station.id}`;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const popupHTML = `</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;div style="font-family: sans-serif;"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;strong style="font-size:13px;"&gt;${station.name}&lt;/strong&gt;&lt;br&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;span style="font-size:11px; color:#666;"&gt;Quelle: ${station.source}&lt;/span&gt;&lt;br&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;span style="font-size:12px;"&gt;&lt;b&gt;Aktuell:&lt;/b&gt; ${station.speed} km/h (${station.direction}°)&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;div class="chart-container"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                                </span>&lt;canvas id="${popupId}"&gt;&lt;/canvas&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                            </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>`;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>const marker = L.marker([station.lat, station.lon], { icon: customIcon })</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>.addTo(markerLayer)</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>.bindPopup(popupHTML);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                    </span>marker.on('popupopen', () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>createPopupChart(popupId, station.history);</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>});</p>
+<p class="p1"><span class="Apple-converted-space">                </span>});</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.getElementById('status').innerHTML = `🟢 Live: ${stations.length} Stationen aktiv.`;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>} catch (error) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>document.getElementById('status').innerHTML = "🔴 Fehler beim Laden der Daten oder Server schläft.";</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>function createPopupChart(canvasId, historyData) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const ctx = document.getElementById(canvasId).getContext('2d');</p>
+<p class="p2"><span class="Apple-converted-space">            </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>if (!historyData || historyData.length === 0) {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>ctx.font = "12px Arial";</p>
+<p class="p1"><span class="Apple-converted-space">                </span>ctx.fillText("Keine Verlaufsdaten verfügbar", 10, 50);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>const labels = historyData.map(h =&gt; h.time);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const speeds = historyData.map(h =&gt; h.speed);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">            </span>new Chart(ctx, {</p>
+<p class="p1"><span class="Apple-converted-space">                </span>type: 'line',</p>
+<p class="p1"><span class="Apple-converted-space">                </span>data: {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>labels: labels,</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>datasets: [{</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>label: 'km/h',</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>data: speeds,</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>borderColor: '#007bff',</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>backgroundColor: 'rgba(0, 123, 255, 0.1)',</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>borderWidth: 2,</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>tension: 0.3,</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>pointRadius: 2</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>}]</p>
+<p class="p1"><span class="Apple-converted-space">                </span>},</p>
+<p class="p1"><span class="Apple-converted-space">                </span>options: {</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>responsive: true,</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>maintainAspectRatio: false,</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>plugins: { legend: { display: false } },</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>scales: {</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>x: { grid: { display: false }, ticks: { font: { size: 9 } } },</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>y: { beginAtZero: true, ticks: { font: { size: 9 } } }</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">                </span>}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>});</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>updateMap();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>setInterval(updateMap, 60000); // Aktualisierung im Minutentakt</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>
