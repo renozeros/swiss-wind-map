@@ -6,9 +6,10 @@ import os
 import re
 
 app = Flask(__name__)
+# CORS-Sicherheitsfreigabe felsenfest konfigurieren
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Festgelegter Kartenausschnitt: Bodensee bis Vaduz
+# Geografischer Filter: Bodensee bis Vaduz
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -30,11 +31,11 @@ def scrape_holfuy_station(station_id, name, lat, lon):
             history = []
             for i in range(5, -1, -1):
                 t = (now - timedelta(hours=i)).strftime("%H:%M")
-                history.append({"time": t, "speed": max(0, speed + (i % 3) - 1), "direction": direction})
+                history.append({"time": t, "speed": int(max(0, speed + (i % 3) - 1)), "direction": int(direction)})
                 
             return {
-                "id": f"HF_{station_id}", "name": name, "lat": lat, "lon": lon,
-                "speed": speed, "direction": direction, "source": "Holfuy", "history": history
+                "id": f"HF_{station_id}", "name": name, "lat": float(lat), "lon": float(lon),
+                "speed": int(speed), "direction": int(direction), "source": "Holfuy", "history": history
             }
     except Exception:
         pass
@@ -44,7 +45,7 @@ def scrape_holfuy_station(station_id, name, lat, lon):
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Offizielle, unzerstörbare Regierungsdaten)
+    # 1. METEOSCHWEIZ (Offizielle Bundesdaten)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -65,10 +66,14 @@ def wind_data():
                 if dt >= six_hours_ago:
                     if st_id not in history_map:
                         history_map[st_id] = []
+                    
+                    val = props.get("wind_speed")
+                    speed_val = round(float(val)) if val is not None else 0
+                    
                     history_map[st_id].append({
                         "time": dt.strftime("%H:%M"),
-                        "speed": round(float(props.get("wind_speed", 0) or 0)),
-                        "direction": props.get("wind_direction", 0) or 0
+                        "speed": int(speed_val),
+                        "direction": int(props.get("wind_direction", 0) or 0)
                     })
             except Exception:
                 continue
@@ -78,7 +83,6 @@ def wind_data():
             geom = feature.get("geometry", {})
             coords = geom.get("coordinates", [])
             
-            # FEHLER KORRIGIERT: Explizite Trennung von X (Longitude) und Y (Latitude)
             if coords and len(coords) >= 2:
                 lon = float(coords[0])
                 lat = float(coords[1])
@@ -86,19 +90,20 @@ def wind_data():
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
                     st_id = props.get("station_reference") or props.get("station_name")
                     speed = props.get("wind_speed")
+                    
                     if speed is not None:
                         history = history_map.get(st_id, [])
                         history = sorted(history, key=lambda x: x["time"])
                         stations_data[st_id] = {
-                            "id": st_id, "name": props.get("station_name", "Unbekannt"),
-                            "lat": lat, "lon": lon, "speed": round(float(speed)),
-                            "direction": props.get("wind_direction", 0) or 0,
+                            "id": str(st_id), "name": str(props.get("station_name", "Unbekannt")),
+                            "lat": float(lat), "lon": float(lon), "speed": int(round(float(speed))),
+                            "direction": int(props.get("wind_direction", 0) or 0),
                             "source": "MeteoSchweiz", "history": history
                         }
     except Exception:
         pass
 
-    # 2. HOLFUY ECHTE SCRAPER-STATIONEN
+    # 2. HOLFUY SCRAPER
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
