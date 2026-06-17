@@ -1,5 +1,5 @@
 import requests
-from flask import Flask, jsonify, make_response
+from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
@@ -50,7 +50,7 @@ def home():
 def wind_data():
     stations_data = {}
     
-    # 1. QUELLE: METEOSCHWEIZ (Struktur korrigiert)
+    # 1. QUELLE: METEOSCHWEIZ
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -69,7 +69,6 @@ def wind_data():
                     st_name = props.get("station_name") or "Unbekannte Station"
                     
                     if st_id:
-                        # Direkter Zugriff auf die flachen Felder des GeoJSON
                         speed = props.get("wind_speed")
                         direction = props.get("wind_direction")
                         
