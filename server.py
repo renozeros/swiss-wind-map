@@ -1,104 +1,81 @@
-import requests
-from flask import Flask, jsonify, make_response
-from flask_cors import CORS
-from datetime import datetime, timedelta
-import os
-import re
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ostschweiz Live Wind Hub</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6f9; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        h1 { margin-top: 0; color: #007bff; font-size: 24px; }
+        .status-badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-bottom: 20px; background: #ffeeba; color: #856404; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #007bff; color: white; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #dee2e6; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .speed-text { font-weight: bold; color: #dc3545; }
+        .source-tag { font-size: 11px; padding: 3px 6px; background: #e9ecef; border-radius: 4px; color: #495057; }
+    </style>
+</head>
+<body>
 
-app = Flask(__name__)
-# CORS wird hier kompromisslos für das gesamte Internet geöffnet
-CORS(app, resources={r"/*": {"origins": "*"}})
+    <div class="container">
+        <h1>Live-Windmesswerte: Bodensee - Alpstein - Vaduz</h1>
+        <div id="status" class="status-badge">Verbinde zum Wind-Server...</div>
+        <div id="table-container"></div>
+    </div>
 
-def scrape_holfuy_station(station_id, name, lat, lon):
-    try:
-        url = f"https://holfuy.com{station_id}&su=km/h&t=C&lang=de&mode=detailed"
-        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
-        res = requests.get(url, headers=headers, timeout=5)
-        
-        if res.status_code == 200:
-            html = res.text
-            speed_match = re.search(r'id=["\']j_speed["\'][^>]*>([\d\.]+)<', html)
-            dir_match = re.search(r'id=["\']j_dirTxt["\'][^>]*>([\d\.]+)', html) or re.search(r'(\d+)°', html)
-            
-            speed = round(float(speed_match.group(1))) if speed_match else 12
-            direction = int(dir_match.group(1)) if dir_match else 240
-            
-            now = datetime.now()
-            history = []
-            for i in range(5, -1, -1):
-                t = (now - timedelta(hours=i)).strftime("%H:%M")
-                history.append({"time": t, "speed": int(max(0, speed + (i % 3) - 1)), "direction": int(direction)})
+    <script>
+        async function loadWindData() {
+            const statusEl = document.getElementById("status");
+            const containerEl = document.getElementById("table-container");
+
+            try {
+                const response = await fetch("https://swiss-wind-backend.onrender.com/api/wind");
                 
-            return {
-                "id": f"HF_{station_id}", "name": name, "lat": float(lat), "lon": float(lon),
-                "speed": int(speed), "direction": int(direction), "source": "Holfuy", "history": history
+                if (!response.ok) {
+                    throw new Error("HTTP-Fehler " + response.status);
+                }
+
+                const stations = await response.json();
+
+                if (stations && stations.length > 0) {
+                    let html = "<table>";
+                    html += "<tr><th>Station / Messort</th><th>Windstärke</th><th>Richtung</th><th>Netzwerk</th></tr>";
+
+                    stations.forEach(station => {
+                        const name = station.name ? station.name : "Unbekannt";
+                        const speed = station.speed !== undefined ? station.speed : 0;
+                        const direction = station.direction !== undefined ? station.direction : 0;
+                        const source = station.source ? station.source : "MeteoSchweiz";
+
+                        html += "<tr>";
+                        html += "<td><b>" + name + "</b></td>";
+                        html += "<td><span class='speed-text'>" + speed + " km/h</span></td>";
+                        html += "<td>" + direction + "°</td>";
+                        html += "<td><span class='source-tag'>" + source + "</span></td>";
+                        html += "</tr>";
+                    });
+
+                    html += "<table>";
+                    containerEl.innerHTML = html;
+                    
+                    statusEl.style.background = "#d4edda";
+                    statusEl.style.color = "#155724";
+                    statusEl.innerHTML = "🟢 Live: " + stations.length + " Stationen aktiv";
+                } else {
+                    statusEl.innerHTML = "🔴 Keine Stationen in dieser Region gefunden.";
+                }
+            } catch (error) {
+                statusEl.style.background = "#f8d7da";
+                statusEl.style.color = "#721c24";
+                statusEl.innerHTML = "🔴 Fehler beim Laden der Daten.";
+                console.error(error);
             }
-    except Exception:
-        pass
-    return None
+        }
 
-@app.route("/")
-def home():
-    return "🟢 Swiss Wind Backend läuft einwandfrei!"
-
-@app.route("/api/wind", methods=["GET"])
-def wind_data():
-    stations_data = {}
-    
-    # 1. METEOSCHWEIZ (Absolut ungefiltert)
-    try:
-        live_url = "https://admin.ch"
-        live_res = requests.get(live_url, timeout=5).json()
-        
-        for feature in live_res.get("features", []):
-            props = feature.get("properties", {})
-            geom = feature.get("geometry", {})
-            coords = geom.get("coordinates", [])
-            
-            if coords and len(coords) >= 2:
-                # Wir nehmen die Koordinaten einfach so, wie sie kommen
-                lon = float(coords[0])
-                lat = float(coords[1])
-                
-                st_id = props.get("station_reference") or props.get("station_name")
-                speed = props.get("wind_speed")
-                
-                if speed is not None:
-                    # Um den Code schlank und fehlerfrei zu halten, erzeugen wir eine einfache Live-Historie
-                    now = datetime.now()
-                    history = []
-                    for i in range(5, -1, -1):
-                        t = (now - timedelta(hours=i)).strftime("%H:%M")
-                        history.append({"time": t, "speed": int(round(float(speed)))})
-
-                    stations_data[st_id] = {
-                        "id": str(st_id), 
-                        "name": str(props.get("station_name", "Unbekannt")),
-                        "lat": lat, 
-                        "lon": lon, 
-                        "speed": int(round(float(speed))),
-                        "direction": int(props.get("wind_direction", 0) or 0),
-                        "source": "MeteoSchweiz", 
-                        "history": history
-                    }
-    except Exception as e:
-        print(f"MeteoSchweiz Fehler: {e}")
-
-    # 2. HOLFUY SCRAPER
-    try:
-        holfuy_spots = [
-            {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
-            {"id": "603", "name": "Ebenalp Alpstein (Holfuy)", "lat": 47.2842, "lon": 9.4125}
-        ]
-        for spot in holfuy_spots:
-            data = scrape_holfuy_station(spot["id"], spot["name"], spot["lat"], spot["lon"])
-            if data:
-                stations_data[data["id"]] = data
-    except Exception:
-        pass
-
-    return jsonify(list(stations_data.values()))
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+        loadWindData();
+        setInterval(loadWindData, 60000);
+    </script>
+</body>
+</html>
