@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Geografischer Fokus: Kreuzlingen/Bodensee -> Alpstein -> Vaduz
+# Fokus-Region bleibt aktiv, um den Server extrem schnell zu halten
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -40,46 +40,11 @@ def scrape_holfuy_station(station_id, name, lat, lon):
         pass
     return None
 
-def fetch_winds_mobi_stations():
-    stations = []
-    try:
-        url = "https://winds.mobi"
-        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"}
-        res = requests.get(url, headers=headers, timeout=5)
-        
-        if res.status_code == 200:
-            data = res.json()
-            for item in data.get("stations", []):
-                lat = item.get("latitude")
-                lon = item.get("longitude")
-                
-                if lat and lon and (LAT_MIN <= lat <= LAT_MAX) and (LON_MIN <= lon <= LON_MAX):
-                    if item.get("provider", "").lower() == "meteoswiss":
-                        continue
-                        
-                    speed = round(float(item.get("wind_speed", 0)))
-                    direction = item.get("wind_direction", 0)
-                    
-                    now = datetime.now()
-                    history = []
-                    for i in range(5, -1, -1):
-                        t = (now - timedelta(hours=i)).strftime("%H:%M")
-                        history.append({"time": t, "speed": max(0, speed + (i % 2) - 1), "direction": direction})
-
-                    stations.append({
-                        "id": f"WM_{item.get('id')}", "name": item.get("name", "Winds.mobi Station"),
-                        "lat": lat, "lon": lon, "speed": speed, "direction": direction,
-                        "source": "Winds.mobi", "history": history
-                    })
-    except Exception:
-        pass
-    return stations
-
 @app.route("/api/wind", methods=["GET", "OPTIONS"])
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ
+    # 1. METEOSCHWEIZ (Offizielle, unzerstörbare Bundesdaten)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -112,7 +77,6 @@ def wind_data():
             props = feature.get("properties", {})
             geom = feature.get("geometry", {})
             if geom.get("coordinates") and len(geom["coordinates"]) >= 2:
-                # FEHLER BEHOBEN: Richtige Zuweisung von Längengrad (Index 0) und Breitengrad (Index 1)
                 lon = geom["coordinates"][0]
                 lat = geom["coordinates"][1]
                 
@@ -131,7 +95,7 @@ def wind_data():
     except Exception:
         pass
 
-    # 2. HOLFUY
+    # 2. HOLFUY LIVE-SCRAPER
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
@@ -141,15 +105,6 @@ def wind_data():
             data = scrape_holfuy_station(spot["id"], spot["name"], spot["lat"], spot["lon"])
             if data:
                 stations_data[data["id"]] = data
-    except Exception:
-        pass
-
-    # 3. WINDS.MOBI
-    try:
-        winds_stations = fetch_winds_mobi_stations()
-        for station in winds_stations:
-            if station["id"] not in stations_data:
-                stations_data[station["id"]] = station
     except Exception:
         pass
 
