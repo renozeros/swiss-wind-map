@@ -6,10 +6,9 @@ import os
 import re
 
 app = Flask(__name__)
-# CORS-Sicherheitsfreigabe felsenfest konfigurieren
-CORS(app, resources={r"/*": {"origins": "*"}})
+# KORREKTUR: CORS wird hier absolut strikt für alle Routen und Methoden freigeschaltet
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "OPTIONS", "HEAD"], "allow_headers": ["*"]}})
 
-# Geografischer Filter: Bodensee bis Vaduz
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -41,18 +40,17 @@ def scrape_holfuy_station(station_id, name, lat, lon):
         pass
     return None
 
-# NEU: Diese Route verhindert den 404-Fehler und zeigt, dass der Server lebt
 @app.route("/")
 def home():
-    response = make_response("🟢 Swiss Wind Backend läuft einwandfrei! Nutze /api/wind für die Daten.")
+    response = make_response("🟢 Swiss Wind Backend läuft einwandfrei!")
     response.headers["Content-Type"] = "text/plain; charset=utf-8"
     return response
 
-@app.route("/api/wind", methods=["GET", "OPTIONS"])
+@app.route("/api/wind", methods=["GET"])
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Offizielle Bundesdaten)
+    # 1. METEOSCHWEIZ
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -110,7 +108,7 @@ def wind_data():
     except Exception:
         pass
 
-    # 2. HOLFUY SCRAPER
+    # 2. HOLFUY
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
@@ -123,11 +121,7 @@ def wind_data():
     except Exception:
         pass
 
-    response = make_response(jsonify(list(stations_data.values())))
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
+    return jsonify(list(stations_data.values()))
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
