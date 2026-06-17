@@ -41,6 +41,13 @@ def scrape_holfuy_station(station_id, name, lat, lon):
         pass
     return None
 
+# NEU: Diese Route verhindert den 404-Fehler und zeigt, dass der Server lebt
+@app.route("/")
+def home():
+    response = make_response("🟢 Swiss Wind Backend läuft einwandfrei! Nutze /api/wind für die Daten.")
+    response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    return response
+
 @app.route("/api/wind", methods=["GET", "OPTIONS"])
 def wind_data():
     stations_data = {}
