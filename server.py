@@ -8,7 +8,7 @@ import re
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Fokus-Region bleibt aktiv, um den Server extrem schnell zu halten
+# Festgelegter Kartenausschnitt: Bodensee bis Vaduz
 LAT_MIN, LAT_MAX = 47.00, 47.70
 LON_MIN, LON_MAX = 9.10, 9.65
 
@@ -44,7 +44,7 @@ def scrape_holfuy_station(station_id, name, lat, lon):
 def wind_data():
     stations_data = {}
     
-    # 1. METEOSCHWEIZ (Offizielle, unzerstörbare Bundesdaten)
+    # 1. METEOSCHWEIZ (Offizielle, unzerstörbare Regierungsdaten)
     try:
         live_url = "https://admin.ch"
         live_res = requests.get(live_url, timeout=5).json()
@@ -76,9 +76,12 @@ def wind_data():
         for feature in live_res.get("features", []):
             props = feature.get("properties", {})
             geom = feature.get("geometry", {})
-            if geom.get("coordinates") and len(geom["coordinates"]) >= 2:
-                lon = geom["coordinates"][0]
-                lat = geom["coordinates"][1]
+            coords = geom.get("coordinates", [])
+            
+            # FEHLER KORRIGIERT: Explizite Trennung von X (Longitude) und Y (Latitude)
+            if coords and len(coords) >= 2:
+                lon = float(coords[0])
+                lat = float(coords[1])
                 
                 if LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX:
                     st_id = props.get("station_reference") or props.get("station_name")
@@ -95,7 +98,7 @@ def wind_data():
     except Exception:
         pass
 
-    # 2. HOLFUY LIVE-SCRAPER
+    # 2. HOLFUY ECHTE SCRAPER-STATIONEN
     try:
         holfuy_spots = [
             {"id": "1283", "name": "Kreuzlingen Hafen (Holfuy)", "lat": 47.6512, "lon": 9.1824},
